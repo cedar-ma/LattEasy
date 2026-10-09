@@ -146,7 +146,7 @@ class FoamSimulation:
     }
 
     def __init__(self, geom_path, domain_size, params=None, cpus=4,
-                 solver_path=None, name="foam"):
+                 solver_path=None, name="foam", mpi_launcher=None):
         """
         Parameters
         ----------
@@ -161,6 +161,10 @@ class FoamSimulation:
             Explicit foam_flow binary; otherwise searched for.
         name : str
             Prefix for the xml file and the sims/ subfolder.
+        mpi_launcher : str, optional
+            MPI launcher to use, e.g. "ibrun" on TACC. Defaults to whatever
+            latteasy._native.find_mpi_launcher() returns (mpirun/mpiexec).
+            ibrun only works inside a Slurm allocation (sbatch or idev).
         """
         self.geom_path = Path(geom_path).resolve()
         if not self.geom_path.is_file():
@@ -169,6 +173,7 @@ class FoamSimulation:
         self.nx, self.ny, self.nz = domain_size
         self.name = name
         self.cpus = cpus
+        self.mpi_launcher = mpi_launcher
         self.lbm_loc = str(get_foam_executable(solver_path))
 
         self.params = {k: dict(v) for k, v in self.DEFAULT_PARAMS.items()}
@@ -205,17 +210,27 @@ class FoamSimulation:
 
     def run_sim(self, mpi_procs=None):
         """Cold-start the solver. Returns the path of out/bubbleTimeHistory.log."""
+        explicit_procs = mpi_procs is not None
         if mpi_procs is None:
             mpi_procs = self.cpus
 
-        mpi_launcher = find_mpi_launcher()
+        mpi_launcher = self.mpi_launcher or find_mpi_launcher()
         if mpi_launcher is None:
             raise RuntimeError(
                 "No MPI launcher was found. Install MPI and make sure `mpirun` or `mpiexec` is on your PATH."
             )
 
         # One argument after the binary -> cold start.
-        cmd = [mpi_launcher, "-n", str(mpi_procs), str(self.lbm_loc), f"{self.name}.xml"]
+        if os.path.basename(str(mpi_launcher)) == "ibrun":
+            # TACC's ibrun takes its task count from the Slurm allocation
+            # (sbatch -n / idev -n). Only pass -n if the caller explicitly
+            # asked for a count; it must not exceed the allocation.
+            cmd = [mpi_launcher]
+            if explicit_procs:
+                cmd += ["-n", str(mpi_procs)]
+            cmd += [str(self.lbm_loc), f"{self.name}.xml"]
+        else:
+            cmd = [mpi_launcher, "-n", str(mpi_procs), str(self.lbm_loc), f"{self.name}.xml"]
         print("Running:", " ".join(cmd))
 
         # cwd = sims folder: saveState() writes continue.xml/checkpoint_* to
