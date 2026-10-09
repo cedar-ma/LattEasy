@@ -3,11 +3,14 @@ from pathlib import Path
 import shutil
 from latteasy.preprocessing.foam_tools import FoamSimulation
 
-geometry_file = "input/gumbo_fracture_3Dhorrizontal_1280_550_50.dat"
+here = Path(__file__).resolve().parent
+os.chdir(here)
+
+geometry_file = here/"input/gumbo_fracture_3Dhorrizontal_1280_550_50.dat"
 domain_size = (1280, 550, 50)
 num_cores = 2
 
-os.chdir(Path(__file__).resolve().parent)
+
 
 # Cold start only: FoamSimulation always invokes `foam_flow <xml>` with no
 # second argument, so foam_flow.cpp takes the nucleateBubbles() branch and
@@ -15,7 +18,7 @@ os.chdir(Path(__file__).resolve().parent)
 # leave params={} to just use FoamSimulation.DEFAULT_PARAMS as-is.
 
 simulation = FoamSimulation(
-    geometry_file, domain_size, cpus=num_cores,
+    geometry_file, domain_size, cpus=num_cores, mpi_launcher="ibrun",
     params={"Nucleation": {"distribution": "list", "numberOfBubbles": 300, "radius": 12, "shift": 20, "packingOffset": 3},
     "output": {"outIter": 500, "save_it": 10000},
     },  
