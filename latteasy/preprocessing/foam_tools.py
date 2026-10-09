@@ -18,9 +18,10 @@ radius/shift/packingOffset/numberOfBubbles unconditionally.
 """
 
 import os
+import sys
 import time
 from pathlib import Path
-from subprocess import run as subprocess_run
+from subprocess import PIPE, STDOUT, Popen as subprocess_popen
 
 from latteasy._native import build_runtime_env, find_mpi_launcher, find_solver_executable
 
@@ -231,19 +232,36 @@ class FoamSimulation:
             cmd += [str(self.lbm_loc), f"{self.name}.xml"]
         else:
             cmd = [mpi_launcher, "-n", str(mpi_procs), str(self.lbm_loc), f"{self.name}.xml"]
-        print("Running:", " ".join(cmd))
+        print(f"Running (cwd={self.folder_path}):", " ".join(cmd))
 
         # cwd = sims folder: saveState() writes continue.xml/checkpoint_* to
         # the CWD, not to outDir.
         run_log = os.path.join(self.folder_path, "run.log")
         env = build_runtime_env()
         t0 = time.time()
+        # Stream solver output to the terminal and to run.log at the same time.
+        # stderr is merged into stdout; the log is flushed line by line, so
+        # `tail -f run.log` from another terminal also works.
         with open(run_log, "w") as fh:
-            completed = subprocess_run(cmd, cwd=self.folder_path, env=env, stdout=fh, stderr=fh)
+            proc = subprocess_popen(
+                cmd, cwd=self.folder_path, env=env,
+                stdout=PIPE, stderr=STDOUT, text=True, bufsize=1,
+            )
+            try:
+                for line in proc.stdout:
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+                    fh.write(line)
+                    fh.flush()
+                returncode = proc.wait()
+            except KeyboardInterrupt:
+                proc.terminate()
+                proc.wait()
+                raise
         dt = time.time() - t0
 
-        if completed.returncode != 0:
-            raise RuntimeError(f"Simulation failed (exit {completed.returncode}). Check `{run_log}`.")
+        if returncode != 0:
+            raise RuntimeError(f"Simulation failed (exit {returncode}). Check `{run_log}`.")
 
         history_log = os.path.join(self.out_path, "bubbleTimeHistory.log")
         print(f"Finished in {dt / 60:.1f} min.")
