@@ -6,28 +6,14 @@ from latteasy.preprocessing.foam_tools import FoamSimulation
 here = Path(__file__).resolve().parent
 os.chdir(here)
 
-geometry_file = here/"input/gumbo_fracture_3Dhorrizontal_1280_550_50.dat"
-<<<<<<< Updated upstream
-domain_size = (640, 225, 25)
+geometry_file = here/"input/h18_1constriction_channel_400_120_18.dat"
+domain_size = (400, 120, 18)
 num_cores = 128
-
-
-=======
-domain_size = (1280, 550, 50)
-num_cores = 2
-
-
->>>>>>> Stashed changes
-
-# Cold start only: FoamSimulation always invokes `foam_flow <xml>` with no
-# second argument, so foam_flow.cpp takes the nucleateBubbles() branch and
-# starts at iT = 0. Overrides below match examples/foam_flow/rough_restart.xml;
-# leave params={} to just use FoamSimulation.DEFAULT_PARAMS as-is.
 
 simulation = FoamSimulation(
     geometry_file, domain_size, cpus=num_cores, mpi_launcher="ibrun",
     params={"Nucleation": {"distribution": "list", "numberOfBubbles": 300, "radius": 12, "shift": 20, "packingOffset": 3},
-    "output": {"outIter": 500, "save_it": 10000},
+     "numerics": {"g_LB": -1e-4, "maxIter": 20000,}, "fluid": {"contactAngle": 30.0 }, "output": {"outIter": 500, "save_it": 100000},
     },  
 )
 for ax in "xyz":
