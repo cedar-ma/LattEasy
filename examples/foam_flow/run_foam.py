@@ -7,10 +7,17 @@ here = Path(__file__).resolve().parent
 os.chdir(here)
 
 geometry_file = here/"input/gumbo_fracture_3Dhorrizontal_1280_550_50.dat"
+<<<<<<< Updated upstream
 domain_size = (640, 225, 25)
 num_cores = 128
 
 
+=======
+domain_size = (1280, 550, 50)
+num_cores = 2
+
+
+>>>>>>> Stashed changes
 
 # Cold start only: FoamSimulation always invokes `foam_flow <xml>` with no
 # second argument, so foam_flow.cpp takes the nucleateBubbles() branch and
